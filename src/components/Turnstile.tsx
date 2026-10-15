@@ -78,8 +78,12 @@ export const Turnstile = forwardRef<TurnstileHandle, { onToken?: (token: string)
       loadScript()
         .then(() => {
           if (cancelled || !el.current || !window.turnstile) return;
+          const sitekey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "1x00000000000000000000AA";
+          if (!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && process.env.NODE_ENV === "production") {
+            console.error("CRITICAL: NEXT_PUBLIC_TURNSTILE_SITE_KEY is missing from production environment variables.");
+          }
           widgetId.current = window.turnstile.render(el.current, {
-            sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "1x00000000000000000000AA",
+            sitekey,
             callback: (t: string) => onTokenRef.current(t),
             "expired-callback": () => onTokenRef.current(""),
             "error-callback": () => onTokenRef.current(""),
