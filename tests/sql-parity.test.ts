@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { normalizeNic } from "@/lib/nic";
-import { DISTRICTS, EVENT_CODES } from "@/lib/reference";
+import { DISTRICTS, EVENT_CODES, PB_REGEX, PROVINCE_OF } from "@/lib/reference";
 import { checkDigit } from "@/lib/slaa-id";
 import { admin } from "./support/db";
 
@@ -43,6 +43,19 @@ describe("TypeScript matches SQL", () => {
     expect(d.map((r) => r.name)).toEqual([...DISTRICTS].sort());
     const e = await admin<{ code: string }[]>`SELECT code FROM event ORDER BY sort_order`;
     expect(e.map((r) => r.code)).toEqual(EVENT_CODES);
+  });
+
+  it("province of each district matches the seed data", async () => {
+    const rows = await admin<{ name: string; province: string }[]>`SELECT name, province FROM district`;
+    expect(Object.fromEntries(rows.map((r) => [r.name, r.province]))).toEqual(PROVINCE_OF);
+  });
+
+  it("personal-best format agrees with the database check", async () => {
+    const samples = ["10.85", "1:52.30", "6.45", "5200", "2:15:30", "9", "10,85", "abc", "1.2.3.4", "", "123456"];
+    for (const s of samples) {
+      const [r] = await admin<{ ok: boolean }[]>`SELECT ${s} ~ '^[0-9]{1,5}([:.][0-9]{1,2}){0,2}$' AS ok`;
+      expect(PB_REGEX.test(s), s).toBe(r.ok);
+    }
   });
 
   it("masks names for the public lookup", async () => {

@@ -52,3 +52,30 @@ export function saveDone(v: DoneInfo) {
 export function loadDone(): DoneInfo | null {
   return read<DoneInfo>(DONE_KEY);
 }
+
+// --- answers in progress ---------------------------------------------------
+// Kept per tab (sessionStorage) so a reload, a language change or a slow
+// network does not lose what was typed. Cleared on successful registration.
+// Tied to the checked identity, so a different person starts with a blank form.
+
+const DRAFT_KEY = "slaa.draft";
+
+export type Draft<V, C> = { identity: string; values: V; coach: C; savedAt: number };
+
+export function identityKey(identity: Identity) {
+  return JSON.stringify(identity);
+}
+
+export function saveDraft<V, C>(identity: Identity, values: V, coach: C) {
+  write(DRAFT_KEY, { identity: identityKey(identity), values, coach, savedAt: Date.now() });
+}
+
+export function loadDraft<V, C>(identity: Identity): Draft<V, C> | null {
+  const d = read<Draft<V, C>>(DRAFT_KEY);
+  if (!d || d.identity !== identityKey(identity) || Date.now() - d.savedAt > MAX_AGE_MS * 12) return null;
+  return d;
+}
+
+export function clearDraft() {
+  write(DRAFT_KEY, null);
+}

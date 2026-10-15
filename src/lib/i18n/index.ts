@@ -3,10 +3,10 @@
 // translated here by their exact text (tErr), so the zod schemas and API
 // routes stay shared and language-free.
 
-import { EVENTS } from "../reference";
+import { EVENTS, PROVINCE_OF, type District } from "../reference";
 import { en, type MessageKey } from "./en";
-import { si, siCategories, siDistricts, siErrors, siEvents } from "./si";
-import { ta, taCategories, taDistricts, taErrors, taEvents } from "./ta";
+import { si, siCategories, siDistricts, siErrors, siEvents, siProvinces } from "./si";
+import { ta, taCategories, taDistricts, taErrors, taEvents, taProvinces } from "./ta";
 
 export const LANGS = ["en", "si", "ta"] as const;
 export type Lang = (typeof LANGS)[number];
@@ -25,6 +25,7 @@ const MESSAGES = { en, si, ta };
 const ERRORS: Record<Lang, Record<string, string>> = { en: {}, si: siErrors, ta: taErrors };
 const DISTRICTS: Record<Lang, Record<string, string>> = { en: {}, si: siDistricts, ta: taDistricts };
 const EVENT_NAMES: Record<Lang, Record<string, string>> = { en: {}, si: siEvents, ta: taEvents };
+const PROVINCES: Record<Lang, Record<string, string>> = { en: {}, si: siProvinces, ta: taProvinces };
 const CATEGORIES: Record<Lang, Record<string, string>> = { en: {}, si: siCategories, ta: taCategories };
 
 export function t(lang: Lang, key: MessageKey, vars?: Record<string, string>): string {
@@ -41,6 +42,12 @@ export function tErr(lang: Lang, message: string | undefined | null): string {
 
 export function districtName(lang: Lang, district: string) {
   return DISTRICTS[lang][district] ?? district;
+}
+
+/** Province name for a district, e.g. Kandy -> Central / මධ්‍යම / மத்திய. */
+export function provinceOf(lang: Lang, district: string) {
+  const p = PROVINCE_OF[district as District];
+  return p ? (PROVINCES[lang][p] ?? p) : "";
 }
 
 export function eventName(lang: Lang, code: string) {

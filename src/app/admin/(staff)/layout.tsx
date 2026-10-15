@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PageContainer } from "@/components/Page";
 import { redirect } from "next/navigation";
 import { requireAdmin, supabaseConfigured, supabaseServer } from "@/lib/admin-auth";
 
@@ -20,22 +21,23 @@ const NAV = [
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
   const email = await requireAdmin();
   return (
-    // break out of the narrow public column; tables need the width
-    <div className="relative left-1/2 flex w-[min(72rem,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
-        <nav className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+    <PageContainer size="wide" className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between">
+        {/* scrolls sideways on phones instead of wrapping into several lines */}
+        <nav className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 text-sm md:mx-0 md:px-0 md:pb-0">
           {NAV.map(([href, label]) => (
-            <Link key={href} href={href} className="font-medium text-primary hover:underline">
+            <Link key={href} href={href}
+              className="shrink-0 rounded-full border bg-background px-3.5 py-1.5 font-medium text-primary hover:bg-primary/5">
               {label}
             </Link>
           ))}
         </nav>
         <form action={signOut} className="flex items-center gap-2 text-xs text-muted-foreground">
-          {email}
-          <button type="submit" className="underline">Sign out</button>
+          <span className="truncate">{email}</span>
+          <button type="submit" className="shrink-0 underline">Sign out</button>
         </form>
       </div>
       {children}
-    </div>
+    </PageContainer>
   );
 }

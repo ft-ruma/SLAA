@@ -26,7 +26,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const { sent, error } = await searchParams;
 
   return (
-    <div className="mx-auto flex max-w-sm flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-sm flex-col gap-6 px-4 py-10 sm:py-16">
       <h1 className="text-2xl font-bold">SLAA staff sign in</h1>
       {sent ? (
         <p className="rounded-lg border bg-background p-4 text-sm">

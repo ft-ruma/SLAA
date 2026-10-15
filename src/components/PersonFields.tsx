@@ -23,21 +23,25 @@ type Props = {
   /** DOB and gender come from the NIC and cannot be changed. */
   lockedFromNic: boolean;
   phoneLabel: string;
+  /** current district value, to show its province */
+  district?: string;
 };
 
-export function PersonFields({ register, errors, lockedFromNic, phoneLabel }: Props) {
-  const { t } = useT();
+export function PersonFields({ register, errors, lockedFromNic, phoneLabel, district }: Props) {
+  const { t, province } = useT();
   return (
     <>
-      <Field label={t("fullName")} htmlFor="fullName" error={errors.fullName?.message} hint={t("fullNameHint")}>
-        <Input id="fullName" className={inputClass} autoComplete="name" {...register("fullName")}
-          aria-invalid={!!errors.fullName} />
-      </Field>
-      <Field label={t("nameWithInitials")} htmlFor="nameWithInitials" error={errors.nameWithInitials?.message}
-        hint={t("nameWithInitialsHint")}>
-        <Input id="nameWithInitials" className={inputClass} {...register("nameWithInitials")}
-          aria-invalid={!!errors.nameWithInitials} />
-      </Field>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label={t("fullName")} htmlFor="fullName" error={errors.fullName?.message} hint={t("fullNameHint")}>
+          <Input id="fullName" className={inputClass} autoComplete="name" {...register("fullName")}
+            aria-invalid={!!errors.fullName} />
+        </Field>
+        <Field label={t("nameWithInitials")} htmlFor="nameWithInitials" error={errors.nameWithInitials?.message}
+          hint={t("nameWithInitialsHint")}>
+          <Input id="nameWithInitials" className={inputClass} {...register("nameWithInitials")}
+            aria-invalid={!!errors.nameWithInitials} />
+        </Field>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={t("dateOfBirth")} htmlFor="dateOfBirth" error={errors.dateOfBirth?.message}
           hint={lockedFromNic ? t("fromNic") : undefined}>
@@ -58,7 +62,8 @@ export function PersonFields({ register, errors, lockedFromNic, phoneLabel }: Pr
         </Field>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label={t("district")} htmlFor="district" error={errors.district?.message}>
+        <Field label={t("district")} htmlFor="district" error={errors.district?.message}
+          hint={district ? <span data-testid="province">{t("province")}: {province(district)}</span> : undefined}>
           <DistrictSelect id="district" {...register("district")} aria-invalid={!!errors.district} />
         </Field>
         <Field label={phoneLabel} htmlFor="phone" error={errors.phone?.message} hint={t("phoneHint")}>
@@ -78,11 +83,11 @@ export function ConsentBlock({ register, error, name = "consent" }: {
   const { t, tErr } = useT();
   return (
     <div className="flex flex-col gap-3">
-      <div className="rounded-lg bg-muted p-3 text-sm leading-relaxed text-muted-foreground">
+      <div className="max-h-56 overflow-y-auto rounded-xl bg-muted p-4 text-sm leading-relaxed text-muted-foreground sm:max-h-none">
         <p className="mb-1 font-medium text-foreground">{t("consentTitle")}</p>
         {t("consentBody")}
       </div>
-      <label className="flex items-start gap-3 text-sm">
+      <label className="flex cursor-pointer items-start gap-3 rounded-xl border bg-muted/40 p-3 text-sm">
         <input type="checkbox" className="mt-0.5 size-5 shrink-0 accent-primary" {...register(name)}
           aria-invalid={!!error} />
         <span>{t("consentCheckbox")}</span>

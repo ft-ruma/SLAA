@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 import { cleanNic, parseNic } from "./nic";
-import { DISTRICTS, EVENT_CODES } from "./reference";
+import { DISTRICTS, EVENT_CODES, PB_REGEX } from "./reference";
 import { isValidSlaaId } from "./slaa-id";
 
 export const PHONE_REGEX = /^(?:\+94|0)7[0-9]{8}$/;
@@ -66,7 +66,8 @@ export const identitySchema = z.discriminatedUnion("type", [
 export type Identity = z.infer<typeof identitySchema>;
 
 export type NormalizedIdentity = {
-  nic: string | null; // as entered (cleaned); the DB trigger normalises it
+  /** As entered (cleaned); the DB trigger normalises to 12-digit form. */
+  nic: string | null;
   postalId: string | null;
 };
 
@@ -107,13 +108,6 @@ const personFields = {
   consent: z.literal(true, { error: "You must agree to continue." }),
 };
 
-const eventsField = (label: string) =>
-  z
-    .array(z.string())
-    .min(1, { error: `Select at least one ${label}.` })
-    .refine((a) => a.every((c) => EVENT_CODES.includes(c)), { error: "Unknown event selected." })
-    .refine((a) => new Set(a).size === a.length, { error: "An event is selected twice." });
-
 // ---------------------------------------------------------------------------
 // Athlete
 // ---------------------------------------------------------------------------
@@ -148,6 +142,46 @@ export const coachLinkSchema = z
     }
   });
 
+/** One event row: the event, and optionally the personal best and where/when it was set. */
+export const eventEntrySchema = z.object({
+  code: z.string().refine((c) => EVENT_CODES.includes(c), { error: "Select an event." }),
+  pb: z
+    .string()
+    .trim()
+    .refine((v) => v === "" || PB_REGEX.test(v), {
+      error: "Enter the personal best as numbers, e.g. 10.85, 1:52.30 or 6.45.",
+    }),
+  pbYear: yearField,
+  pbCompetition: z.string().trim().max(120, { error: "Competition name is too long." }),
+});
+
+export type EventEntry = z.infer<typeof eventEntrySchema>;
+
+/** A current or past coach who is not in the list. Phone number is optional. */
+export const unlistedCoachSchema = z
+  .object({
+    name: requiredText("Coach name"),
+    phone: z.string(),
+    district: z.union([z.literal(""), z.enum(DISTRICTS)]),
+    relationship: z.enum(["CURRENT", "PAST"]),
+    startYear: yearField,
+    endYear: yearField,
+  })
+  .superRefine((c, ctx) => {
+    const phone = cleanPhone(c.phone);
+    if (phone !== "" && !PHONE_REGEX.test(phone)) {
+      ctx.addIssue({ code: "custom", path: ["phone"], message: "Enter a Sri Lankan mobile number, e.g. 0771234567." });
+    }
+    if (c.relationship === "CURRENT" && c.endYear !== "") {
+      ctx.addIssue({ code: "custom", path: ["endYear"], message: "A current coach has no end year." });
+    }
+    if (c.startYear !== "" && c.endYear !== "" && c.endYear < c.startYear) {
+      ctx.addIssue({ code: "custom", path: ["endYear"], message: "End year is before start year." });
+    }
+  });
+
+export type UnlistedCoach = z.infer<typeof unlistedCoachSchema>;
+
 export const guardianSchema = z.object({
   fullName: requiredText("Guardian name"),
   relationship: requiredText("Relationship", 40),
@@ -161,9 +195,14 @@ export const athleteFormSchema = z
     ...personFields,
     phone: phoneField,
     schoolOrClub: requiredText("School or club"),
-    mainEvents: eventsField("main event"),
+    // the first event is the main event; any after that are additional
+    events: z
+      .array(eventEntrySchema)
+      .min(1, { error: "Select at least 1 event." })
+      .max(8, { error: "Up to 8 events." }),
     guardian: guardianSchema.nullable(),
     coaches: z.array(coachLinkSchema).max(10, { error: "Up to 10 coaches." }),
+    unlistedCoaches: z.array(unlistedCoachSchema).max(5, { error: "Up to 5 coaches not in the list." }),
   })
   .superRefine((a, ctx) => {
     if (dobField.safeParse(a.dateOfBirth).success && ageOn(a.dateOfBirth) < 18 && !a.guardian) {
@@ -176,6 +215,12 @@ export const athleteFormSchema = z
     if (a.coaches.filter((c) => c.isPrimary).length > 1) {
       ctx.addIssue({ code: "custom", path: ["coaches"], message: "Only one current coach can be primary." });
     }
+    const codes = a.events.map((e) => e.code).filter(Boolean);
+    a.events.forEach((e, i) => {
+      if (e.code && codes.indexOf(e.code) !== i) {
+        ctx.addIssue({ code: "custom", path: ["events", i, "code"], message: "An event is selected twice." });
+      }
+    });
     const current = a.coaches.filter((c) => c.relationship === "CURRENT").map((c) => c.coachId);
     if (new Set(current).size !== current.length) {
       ctx.addIssue({ code: "custom", path: ["coaches"], message: "The same coach is listed twice as current." });

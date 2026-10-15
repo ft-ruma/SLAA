@@ -102,6 +102,17 @@ export async function mergeMembers(formData: FormData) {
           SELECT 1 FROM athlete_coach k WHERE k.coach_id = ${keep}
             AND k.athlete_id = ac.athlete_id AND k.relationship_type = 'CURRENT'))`;
 
+    // events the kept record does not have yet, ranked after its own
+    await tx`
+      INSERT INTO athlete_event (athlete_id, event_code, rank, personal_best, pb_year, pb_competition)
+      SELECT ${keep}, d.event_code,
+             (SELECT coalesce(max(rank), 0) FROM athlete_event WHERE athlete_id = ${keep})
+               + row_number() OVER (ORDER BY d.rank),
+             d.personal_best, d.pb_year, d.pb_competition
+      FROM athlete_event d
+      WHERE d.athlete_id = ${dup}
+        AND NOT EXISTS (SELECT 1 FROM athlete_event k WHERE k.athlete_id = ${keep} AND k.event_code = d.event_code)`;
+
     await tx`UPDATE coach_request SET requested_by = ${keep} WHERE requested_by = ${dup}`;
     await tx`UPDATE coach_request SET resolved_coach = ${keep} WHERE resolved_coach = ${dup}`;
     await tx`UPDATE guardian SET athlete_id = ${keep} WHERE athlete_id = ${dup}`;
@@ -139,16 +150,18 @@ export async function resolveRequest(formData: FormData) {
   await sql.begin(async (tx) => {
     const [coach] = await tx`SELECT 1 FROM coach WHERE slaa_id = ${coachId}`;
     if (!coach) throw new Error(`${coachId} is not a registered coach`);
-    const [r] = await tx<{ requested_by: string }[]>`
+    const [r] = await tx<{ requested_by: string; relationship_type: string; start_year: number | null; end_year: number | null }[]>`
       UPDATE coach_request SET status = 'registered', resolved_coach = ${coachId}
       WHERE id = ${requestId} AND status IN ('pending', 'invited')
-      RETURNING requested_by`;
+      RETURNING requested_by, relationship_type, start_year, end_year`;
     if (!r) return;
+    // keep what the athlete said: current or past, and the years
     await tx`
-      INSERT INTO athlete_coach (athlete_id, coach_id, relationship_type, is_primary, is_approved_by_coach)
-      SELECT ${r.requested_by}, ${coachId}, 'CURRENT', false, false
+      INSERT INTO athlete_coach (athlete_id, coach_id, relationship_type, is_primary, start_year, end_year,
+                                 is_approved_by_coach)
+      SELECT ${r.requested_by}, ${coachId}, ${r.relationship_type}, false, ${r.start_year}, ${r.end_year}, false
       WHERE NOT EXISTS (SELECT 1 FROM athlete_coach WHERE athlete_id = ${r.requested_by}
-                          AND coach_id = ${coachId} AND relationship_type = 'CURRENT')`;
+                          AND coach_id = ${coachId} AND relationship_type = ${r.relationship_type})`;
     await tx`
       INSERT INTO audit_log (actor, action, slaa_id, details)
       VALUES (${admin}, 'coach_request_registered', ${r.requested_by},

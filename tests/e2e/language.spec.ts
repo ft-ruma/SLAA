@@ -3,14 +3,14 @@ import { expect, test } from "@playwright/test";
 // Start as a first-time visitor: no language chosen yet.
 test.use({ storageState: { cookies: [], origins: [] } });
 
-test("first visit asks for a language before anything else", async ({ page }) => {
+test("the front page is the language choice", async ({ page }) => {
   await page.goto("/");
-  await expect(page).toHaveURL(/\/language\?next=%2F$/);
   await expect(page.getByRole("heading", { name: "Choose your language" })).toBeVisible();
   await expect(page.getByText("භාෂාව තෝරන්න")).toBeVisible();
   await expect(page.getByText("மொழியைத் தெரிவு செய்யவும்")).toBeVisible();
 
   await page.getByRole("button", { name: /සිංහල/ }).click();
+  await expect(page).toHaveURL(/\/home$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("ඔබේ SLAA හැඳුනුම් අංකය ලබා ගන්න");
   await expect(page.locator("html")).toHaveAttribute("lang", "si");
 
@@ -39,14 +39,28 @@ test("first visit asks for a language before anything else", async ({ page }) =>
 
 test("a deep link (e.g. from a QR code) also asks first, then continues there", async ({ page }) => {
   await page.goto("/register/check");
-  await expect(page).toHaveURL(/\/language\?next=%2Fregister%2Fcheck$/);
+  await expect(page).toHaveURL(/localhost:\d+\/\?next=%2Fregister%2Fcheck$/);
   await page.getByRole("button", { name: /English/ }).click();
   await expect(page).toHaveURL(/\/register\/check$/);
   await expect(page.getByRole("heading", { name: "Check your ID" })).toBeVisible();
 });
 
 test("the language screen will not redirect to another website", async ({ page }) => {
-  await page.goto("/language?next=//evil.example.com");
-  await page.getByRole("button", { name: /English/ }).click();
+  for (const evil of ["//evil.example.com", "/\\evil.example.com", "https://evil.example.com"]) {
+    await page.goto(`/?next=${encodeURIComponent(evil)}`);
+    await page.getByRole("button", { name: /English/ }).click();
+    await expect(page).toHaveURL(/localhost:\d+\/home$/);
+  }
+});
+
+test("returning visitors still see the language choice on the front page", async ({ browser }) => {
+  const ctx = await browser.newContext({ storageState: "tests/e2e/english.storage.json" });
+  const page = await ctx.newPage();
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Choose your language" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /English/ })).toHaveAttribute("aria-pressed", "true");
+  // the old address still works
+  await page.goto("/language");
   await expect(page).toHaveURL(/localhost:\d+\/$/);
+  await ctx.close();
 });

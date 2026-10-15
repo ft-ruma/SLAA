@@ -8,7 +8,8 @@ import { StatusBadge } from "../StatusBadge";
 export const metadata = { title: "Coach requests · SLAA admin" };
 
 type Req = {
-  id: number; coach_name: string; coach_phone: string; coach_district: string | null; status: string;
+  id: number; coach_name: string; coach_phone: string | null; coach_district: string | null; status: string;
+  relationship_type: "CURRENT" | "PAST"; start_year: number | null; end_year: number | null;
   created_at: Date; requested_by: string; athlete_name: string; athlete_initials: string | null;
 };
 
@@ -42,21 +43,26 @@ export default async function CoachRequestsPage({ searchParams }: { searchParams
         </nav>
       </div>
       <p className="text-sm text-muted-foreground">
-        Coaches that athletes could not find. Send each one the registration link, then link them once they register.
+        Coaches (current or past) that athletes typed in because they were not in the list. Contact them, then
+        link them once they are registered as a coach.
       </p>
 
       {!rows.length && <p className="rounded-lg border bg-background p-6 text-center text-muted-foreground">Nothing here.</p>}
 
       {rows.map((r) => {
         const msg = inviteMessage(r);
-        const wa = `https://wa.me/${r.coach_phone.replace(/^\+/, "")}?text=${encodeURIComponent(msg)}`;
-        const sms = `sms:${r.coach_phone}?body=${encodeURIComponent(msg)}`;
+        const wa = r.coach_phone && `https://wa.me/${r.coach_phone.replace(/^\+/, "")}?text=${encodeURIComponent(msg)}`;
+        const sms = r.coach_phone && `sms:${r.coach_phone}?body=${encodeURIComponent(msg)}`;
         return (
           <section key={r.id} className="flex flex-col gap-3 rounded-lg border bg-background p-4 text-sm">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <p className="font-semibold">{r.coach_name} <StatusBadge status={r.status} /></p>
-                <p className="text-muted-foreground">{r.coach_phone} · {r.coach_district ?? "district not given"}</p>
+                <p className="text-muted-foreground">
+                  {r.relationship_type === "CURRENT" ? "Current coach" : "Past coach"}
+                  {(r.start_year || r.end_year) && ` (${[r.start_year, r.end_year].filter(Boolean).join("–")})`}
+                  {" · "}{r.coach_phone ?? "no phone given"} · {r.coach_district ?? "district not given"}
+                </p>
                 <p className="mt-1">
                   Requested by{" "}
                   <Link className="text-primary hover:underline" href={`/admin/members/${r.requested_by}`}>
@@ -70,8 +76,8 @@ export default async function CoachRequestsPage({ searchParams }: { searchParams
               <>
                 <div className="flex flex-wrap items-center gap-2">
                   <CopyButton text={msg} />
-                  <a href={wa} target="_blank" rel="noreferrer" className="h-8 rounded-md border px-3 text-xs leading-8 hover:bg-muted">WhatsApp</a>
-                  <a href={sms} className="h-8 rounded-md border px-3 text-xs leading-8 hover:bg-muted">SMS</a>
+                  {wa && <a href={wa} target="_blank" rel="noreferrer" className="h-8 rounded-md border px-3 text-xs leading-8 hover:bg-muted">WhatsApp</a>}
+                  {sms && <a href={sms} className="h-8 rounded-md border px-3 text-xs leading-8 hover:bg-muted">SMS</a>}
                   {r.status === "pending" && (
                     <form action={markRequestInvited}>
                       <input type="hidden" name="requestId" value={r.id} />

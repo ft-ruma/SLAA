@@ -40,3 +40,31 @@ export const EVENTS: { code: string; name: string; category: string }[] = [
 ];
 
 export const EVENT_CODES = EVENTS.map((e) => e.code);
+
+export type Province =
+  | "Western" | "Central" | "Southern" | "Northern" | "Eastern"
+  | "North Western" | "North Central" | "Uva" | "Sabaragamuwa";
+
+/** Province of each district (mirror of the district table in the seed). */
+export const PROVINCE_OF: Record<District, Province> = {
+  Colombo: "Western", Gampaha: "Western", Kalutara: "Western",
+  Kandy: "Central", Matale: "Central", "Nuwara Eliya": "Central",
+  Galle: "Southern", Matara: "Southern", Hambantota: "Southern",
+  Jaffna: "Northern", Kilinochchi: "Northern", Mannar: "Northern", Vavuniya: "Northern", Mullaitivu: "Northern",
+  Batticaloa: "Eastern", Ampara: "Eastern", Trincomalee: "Eastern",
+  Kurunegala: "North Western", Puttalam: "North Western",
+  Anuradhapura: "North Central", Polonnaruwa: "North Central",
+  Badulla: "Uva", Monaragala: "Uva",
+  Ratnapura: "Sabaragamuwa", Kegalle: "Sabaragamuwa",
+};
+
+/** How a personal best is measured, from the event's category. */
+export function pbKind(code: string): "time" | "distance" | "points" {
+  const category = EVENTS.find((e) => e.code === code)?.category;
+  if (category === "Jumps" || category === "Throws") return "distance";
+  if (category === "Combined events") return "points";
+  return "time";
+}
+
+/** Same pattern as the athlete_event_pb_format check in db/004. */
+export const PB_REGEX = /^[0-9]{1,5}([:.][0-9]{1,2}){0,2}$/;

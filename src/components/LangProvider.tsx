@@ -9,6 +9,7 @@ import {
   categoryName,
   districtName,
   eventName,
+  provinceOf,
   t,
   tErr,
   type Lang,
@@ -30,6 +31,7 @@ export function useT() {
       t: (key: MessageKey, vars?: Record<string, string>) => t(lang, key, vars),
       tErr: (message: string | undefined | null) => tErr(lang, message),
       district: (d: string) => districtName(lang, d),
+      province: (d: string) => provinceOf(lang, d),
       event: (code: string) => eventName(lang, code),
       category: (c: string) => categoryName(lang, c),
     }),
@@ -41,12 +43,12 @@ export function useT() {
 export function LanguageLink() {
   const { lang, t } = useT();
   const pathname = usePathname();
-  if (pathname === "/language" || pathname.startsWith("/admin")) return null;
+  if (pathname === "/" || pathname.startsWith("/admin")) return null;
   return (
     <Link
-      href={`/language?next=${encodeURIComponent(pathname)}`}
+      href={`/?next=${encodeURIComponent(pathname)}`}
       aria-label={t("changeLanguage")}
-      className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+      className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-white/30 bg-white/10 px-2.5 text-sm text-white hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-gold"
     >
       <Languages className="size-4" aria-hidden />
       <span lang={lang}>{LANG_LABELS[lang]}</span>

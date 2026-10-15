@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/admin-auth";
 import { sql } from "@/lib/db";
-import { EVENTS } from "@/lib/reference";
+import { EVENTS, PROVINCE_OF, type District } from "@/lib/reference";
 import { deleteMember, suspendMember, verifyMember } from "../../actions";
 import { StatusBadge } from "../../StatusBadge";
 
@@ -32,7 +32,7 @@ export default async function MemberPage({
   const [m] = await sql`SELECT *, date_of_birth::text AS dob FROM member WHERE slaa_id = ${slaaId}`;
   if (!m) notFound();
 
-  const [[coach], [athlete], guardians, coaches, athletes, requests, audit] = await Promise.all([
+  const [[coach], [athlete], guardians, coaches, athletes, requests, audit, events] = await Promise.all([
     sql`SELECT * FROM coach WHERE slaa_id = ${slaaId}`,
     sql`SELECT * FROM athlete WHERE slaa_id = ${slaaId}`,
     sql`SELECT * FROM guardian WHERE athlete_id = ${slaaId} ORDER BY id`,
@@ -42,6 +42,7 @@ export default async function MemberPage({
         WHERE ac.coach_id = ${slaaId} ORDER BY ac.relationship_type, ac.id`,
     sql`SELECT * FROM coach_request WHERE requested_by = ${slaaId} ORDER BY id`,
     sql`SELECT * FROM audit_log WHERE slaa_id = ${slaaId} ORDER BY at DESC LIMIT 100`,
+    sql`SELECT * FROM athlete_event WHERE athlete_id = ${slaaId} ORDER BY rank`,
   ]);
 
   const identity = [
@@ -92,6 +93,7 @@ export default async function MemberPage({
             ["Date of birth", m.dob],
             ["Gender", m.gender === "F" ? "Female" : "Male"],
             ["District", m.district],
+            ["Province", PROVINCE_OF[m.district as District]],
             ["Phone", m.phone],
             ["Email", m.email],
             ["Consent", `${m.consent_version} at ${fmt(m.consent_at)}`],
@@ -114,8 +116,26 @@ export default async function MemberPage({
           <Card title="Athlete profile">
             <Dl rows={[
               ["School or club", athlete.school_or_club],
-              ["Main events", athlete.main_events.map(eventName).join(", ")],
             ]} />
+            {events.length > 0 ? (
+              <table className="mt-3 w-full text-sm">
+                <thead className="text-left text-xs uppercase text-muted-foreground">
+                  <tr><th className="py-1 pr-2">#</th><th className="py-1 pr-2">Event</th><th className="py-1 pr-2">PB</th><th className="py-1">Year / competition</th></tr>
+                </thead>
+                <tbody className="divide-y">
+                  {events.map((e) => (
+                    <tr key={e.event_code}>
+                      <td className="py-1.5 pr-2 text-muted-foreground">{e.rank}{e.rank <= 3 ? " (main)" : ""}</td>
+                      <td className="py-1.5 pr-2">{eventName(e.event_code)}</td>
+                      <td className="py-1.5 pr-2 font-mono">{e.personal_best ?? "—"}</td>
+                      <td className="py-1.5">{[e.pb_year, e.pb_competition].filter(Boolean).join(" · ") || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">Events: {athlete.main_events.map(eventName).join(", ") || "—"}</p>
+            )}
           </Card>
         )}
 
@@ -137,10 +157,14 @@ export default async function MemberPage({
           <LinkTable rows={coaches} who="coach_id" />
           {requests.length > 0 && (
             <div className="mt-3 text-sm">
-              <p className="font-medium">Coach requests (not yet registered)</p>
+              <p className="font-medium">Coaches not in the list</p>
               <ul className="mt-1 list-disc pl-5">
                 {requests.map((r) => (
-                  <li key={r.id}>{r.coach_name} · {r.coach_phone} · {r.coach_district ?? "no district"} · <StatusBadge status={r.status} /></li>
+                  <li key={r.id}>
+                    {r.coach_name} · {r.relationship_type === "CURRENT" ? "current" : "past"}
+                    {(r.start_year || r.end_year) && ` (${[r.start_year, r.end_year].filter(Boolean).join("–")})`}
+                    {" · "}{r.coach_phone ?? "no phone"} · {r.coach_district ?? "no district"} · <StatusBadge status={r.status} />
+                  </li>
                 ))}
               </ul>
             </div>

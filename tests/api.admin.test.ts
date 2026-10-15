@@ -72,7 +72,10 @@ describe("admin actions", () => {
       (${dup}, ${coachA}, 'CURRENT', true),   -- clashes with keep's link: stays behind
       (${dup}, ${coachB}, 'CURRENT', false),  -- moves
       (${dup}, ${coachB}, 'PAST', false)`;     // moves
-    await db`INSERT INTO coach_request (requested_by, coach_name, coach_phone) VALUES (${dup}, 'X', '+94771111111')`;
+    await db`INSERT INTO coach_request (requested_by, coach_name, coach_phone, relationship_type, start_year, end_year)
+             VALUES (${dup}, 'X', NULL, 'PAST', 2015, 2017)`;
+    await db`INSERT INTO athlete_event (athlete_id, event_code, rank, personal_best) VALUES
+      (${keep}, '100m', 1, '12.10'), (${dup}, '100m', 1, '12.50'), (${dup}, 'LJ', 2, '5.20')`;
 
     await expect(actions.mergeMembers(form({ keep, duplicate: dup }))).rejects.toMatchObject({ to: `/admin/members/${keep}` });
 
@@ -85,6 +88,9 @@ describe("admin actions", () => {
       { coach_id: coachB, relationship_type: "PAST", is_primary: false },
     ]);
     expect((await db`SELECT requested_by FROM coach_request`)[0].requested_by).toBe(keep);
+    // events the kept record lacked are copied over; its own PB wins for shared events
+    expect(await db`SELECT event_code, rank, personal_best FROM athlete_event WHERE athlete_id = ${keep} ORDER BY rank`)
+      .toEqual([{ event_code: "100m", rank: 1, personal_best: "12.10" }, { event_code: "LJ", rank: 2, personal_best: "5.20" }]);
     // the duplicate's NIC is free again (unique index excludes merged rows), so a re-registration
     // with it would be caught by the lookup only if not merged
     const audit = await db`SELECT action FROM audit_log WHERE slaa_id IN (${keep}, ${dup}) ORDER BY id`;
@@ -108,8 +114,10 @@ describe("admin actions", () => {
     await actions.resolveRequest(form({ requestId: r.id, coachId: coach }));
     expect((await db`SELECT status, resolved_coach FROM coach_request WHERE id = ${r.id}`)[0])
       .toEqual({ status: "registered", resolved_coach: coach });
-    expect(await db`SELECT relationship_type FROM athlete_coach WHERE athlete_id = ${r.requested_by} AND coach_id = ${coach}`)
-      .toEqual([{ relationship_type: "CURRENT" }]);
+    // the athlete said this was a past coach (2015-2017), and the link keeps that
+    expect(await db`SELECT relationship_type, start_year, end_year FROM athlete_coach
+                    WHERE athlete_id = ${r.requested_by} AND coach_id = ${coach}`)
+      .toEqual([{ relationship_type: "PAST", start_year: 2015, end_year: 2017 }]);
   });
 });
 
@@ -200,6 +208,9 @@ describe("CSV export", () => {
     expect(res.headers.get("content-type")).toContain("text/csv");
     const text = await res.text();
     expect(text.split("\r\n")[0]).toContain("slaa_id,type,full_name");
+    expect(text.split("\r\n")[0]).toContain("district,province,");
+    expect(text).toContain("100m: 12.10; LJ: 5.20");
+    expect(text).not.toContain("()");
     expect(text).toContain(`"'=HYPERLINK(""x"")"`); // formula neutralised
 
     const coaches = await (await exportCsv(new Request("http://test/api/admin/export?type=coaches"))).text();

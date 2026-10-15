@@ -28,7 +28,12 @@ const athleteForm = (over: Record<string, unknown> = {}) => ({
   district: "Kandy",
   phone: "0711234567",
   schoolOrClub: "Mahamaya Girls' College",
-  mainEvents: ["400m"],
+  events: [
+    { code: "400m", pb: "56.20", pbYear: "2025", pbCompetition: "Junior Nationals" },
+    { code: "200m", pb: "", pbYear: "", pbCompetition: "" },
+    { code: "LJ", pb: "5.10", pbYear: "", pbCompetition: "" },
+  ],
+  unlistedCoaches: [],
   guardian: null,
   coaches: [],
   consent: true,
@@ -182,6 +187,20 @@ describe("coach search", () => {
     expect(kandy.results).toEqual([{ slaaId: coach2Id, name: "A. K. Fernando", district: "Kandy" }]);
   });
 
+  it("suggests coaches from the athlete's district when nothing is typed yet", async () => {
+    const res = await searchCoaches(new Request("http://test/api/coaches/search?near=Kandy", { headers: { cookie: passCookie } }));
+    const { results } = await res.json();
+    expect(results).toEqual([{ slaaId: coach2Id, name: "A. K. Fernando", district: "Kandy" }]);
+  });
+
+  it("puts coaches from the athlete's district first, without hiding the others", async () => {
+    await admin`UPDATE member SET full_name = 'Anusha Kumari Perera', name_with_initials = 'A. K. Perera' WHERE slaa_id = ${coach2Id}`;
+    const res = await searchCoaches(new Request("http://test/api/coaches/search?q=perera&near=Kandy", { headers: { cookie: passCookie } }));
+    const ids = (await res.json()).results.map((r: { slaaId: string }) => r.slaaId);
+    expect(ids).toEqual([coach2Id, coachId]);
+    await admin`UPDATE member SET full_name = 'Anusha Kumari Fernando', name_with_initials = 'A. K. Fernando' WHERE slaa_id = ${coach2Id}`;
+  });
+
   it("ignores queries under 2 characters", async () => {
     const res = await searchCoaches(new Request("http://test/api/coaches/search?q=p", { headers: { cookie: passCookie } }));
     expect((await res.json()).results).toEqual([]);
@@ -271,6 +290,95 @@ describe("athlete registration", () => {
     }));
     expect(res.status).toBe(400);
     expect((await admin`SELECT count(*)::int n FROM member`)[0].n).toBe(before);
+  });
+});
+
+describe("events, personal bests and coaches not in the list", () => {
+  let n = 0;
+  const adult = (over: Record<string, unknown>) =>
+    post({
+      identity: { type: "nic", nic: `19970${String(10 + n++).padStart(2, "0")}01234` }, // a fresh 1997 NIC each time
+      form: athleteForm({ fullName: "Event Tester", nameWithInitials: "E. Tester", dateOfBirth: "1997-01-10", gender: "M", ...over }),
+      turnstileToken: "ok",
+    });
+  const ev = (code: string, pb = "") => ({ code, pb, pbYear: "", pbCompetition: "" });
+
+  it("saves the events in order with their personal bests", async () => {
+    const res = await registerAthlete(adult({}));
+    expect(res.status).toBe(201);
+    const { slaaId } = await res.json();
+    expect(await admin`SELECT event_code, rank, personal_best, pb_year, pb_competition FROM athlete_event
+                       WHERE athlete_id = ${slaaId} ORDER BY rank`).toEqual([
+      { event_code: "400m", rank: 1, personal_best: "56.20", pb_year: 2025, pb_competition: "Junior Nationals" },
+      { event_code: "200m", rank: 2, personal_best: null, pb_year: null, pb_competition: null },
+      { event_code: "LJ", rank: 3, personal_best: "5.10", pb_year: null, pb_competition: null },
+    ]);
+    const [a] = await admin`SELECT main_events FROM athlete WHERE slaa_id = ${slaaId}`;
+    expect(a.main_events).toEqual(["400m", "200m", "LJ"]);
+  });
+
+  it("accepts additional events after the 3 main ones", async () => {
+    const res = await registerAthlete(adult({ events: [ev("100m"), ev("200m"), ev("400m"), ev("4x100m", "41.50")] }));
+    expect(res.status).toBe(201);
+  });
+
+  it("needs at least 1 event, with a valid PB", async () => {
+    const none = await registerAthlete(adult({ events: [] }));
+    expect(none.status).toBe(400);
+    expect((await none.json()).error).toBe("Select at least 1 event.");
+
+    const dup = await registerAthlete(adult({ events: [ev("100m"), ev("200m"), ev("100m")] }));
+    expect(dup.status).toBe(400);
+    expect((await dup.json()).fields).toHaveProperty("events.2.code", "An event is selected twice.");
+
+    const badPb = await registerAthlete(adult({ events: [ev("100m", "ten seconds"), ev("200m"), ev("400m")] }));
+    expect(badPb.status).toBe(400);
+    expect((await badPb.json()).fields).toHaveProperty("events.0.pb");
+
+    const empty = await registerAthlete(adult({ events: [ev("100m"), ev(""), ev("400m")] }));
+    expect(empty.status).toBe(400);
+  });
+
+  it("records current and past coaches who are not in the list", async () => {
+    const res = await registerAthlete(adult({
+      unlistedCoaches: [
+        { name: "Mr. Bandara", phone: "076 111 2222", district: "Kandy", relationship: "CURRENT", startYear: "2023", endYear: "" },
+        { name: "Mrs. Silva", phone: "", district: "", relationship: "PAST", startYear: "2018", endYear: "2021" },
+      ],
+    }));
+    expect(res.status).toBe(201);
+    const { slaaId } = await res.json();
+    expect(await admin`SELECT coach_name, coach_phone, coach_district, relationship_type, start_year, end_year, status
+                       FROM coach_request WHERE requested_by = ${slaaId} ORDER BY id`).toEqual([
+      { coach_name: "Mr. Bandara", coach_phone: "+94761112222", coach_district: "Kandy", relationship_type: "CURRENT",
+        start_year: 2023, end_year: null, status: "pending" },
+      { coach_name: "Mrs. Silva", coach_phone: null, coach_district: null, relationship_type: "PAST",
+        start_year: 2018, end_year: 2021, status: "pending" },
+    ]);
+  });
+
+  it("accepts a current coach not in the list without a phone number", async () => {
+    const res = await registerAthlete(adult({
+      unlistedCoaches: [{ name: "No Phone", phone: "", district: "", relationship: "CURRENT", startYear: "", endYear: "" }],
+    }));
+    expect(res.status).toBe(201);
+    const { slaaId } = await res.json();
+    const [cr] = await admin`SELECT coach_phone FROM coach_request WHERE requested_by = ${slaaId} AND coach_name = 'No Phone'`;
+    expect(cr.coach_phone).toBeNull();
+  });
+
+  it("rejects an invalid phone format for an unlisted coach", async () => {
+    const res = await registerAthlete(adult({
+      unlistedCoaches: [{ name: "Bad Phone", phone: "12345", district: "", relationship: "CURRENT", startYear: "", endYear: "" }],
+    }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).fields).toHaveProperty("unlistedCoaches.0.phone");
+  });
+
+  it("the database also rejects a badly formatted PB", async () => {
+    const [{ slaa_id }] = await admin`SELECT slaa_id FROM athlete LIMIT 1`;
+    await expect(admin`INSERT INTO athlete_event (athlete_id, event_code, rank, personal_best)
+                       VALUES (${slaa_id}, 'HT', 9, '12,5m')`).rejects.toMatchObject({ constraint_name: "athlete_event_pb_format" });
   });
 });
 

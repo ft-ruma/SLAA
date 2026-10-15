@@ -29,7 +29,7 @@ npm run test:e2e    # Playwright at 375px width; needs internet for Turnstile te
 ## Deploying (Supabase + Vercel)
 
 1. **Supabase**: create a project in `ap-southeast-1` (Singapore). In the SQL editor run, in order,
-   `db/001_schema.sql`, `db/002_app_additions.sql`, `db/003_admin_delete.sql`, `db/seed_reference.sql`, then
+   `db/001_schema.sql`, `db/002_app_additions.sql`, `db/003_admin_delete.sql`, `db/004_athlete_details.sql`, `db/seed_reference.sql`, then
    `ALTER ROLE slaa_app PASSWORD '<strong password>';`
    The `slaa` schema is not exposed through Supabase's REST API, so the anon key cannot read it.
 2. **Supabase Auth**: Authentication → URL configuration: set the Site URL to the live domain and add

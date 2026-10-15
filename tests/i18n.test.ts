@@ -17,6 +17,7 @@ const SOURCES = [
   "src/app/api/identity-check/route.ts",
   "src/app/api/register/athlete/route.ts",
   "src/app/api/coaches/search/route.ts",
+  "src/app/register/athlete/AthleteRegistration.tsx",
 ];
 
 function publicMessages(): string[] {
@@ -24,6 +25,7 @@ function publicMessages(): string[] {
   for (const file of SOURCES) {
     const src = readFileSync(file, "utf8");
     for (const m of src.matchAll(/(?:error|message|return \{ ok: false, error):\s*"([^"]+)"/g)) out.add(m[1]);
+    for (const m of src.matchAll(/_MSG = "([^"]+)"/g)) out.add(m[1]);
     for (const m of src.matchAll(/requiredText\("([^"]+)"/g)) {
       out.add(`${m[1]} is required.`);
       out.add(`${m[1]} is too long.`);

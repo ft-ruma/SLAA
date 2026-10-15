@@ -1,13 +1,7 @@
-import { cookies } from "next/headers";
-import { LANG_COOKIE, isLang } from "@/lib/i18n";
-import { LanguageChoice } from "./LanguageChoice";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Language · SLAA Registration" };
-
-export default async function LanguagePage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
+// Old address of the language screen; it is now the front page.
+export default async function LanguageRedirect({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const { next } = await searchParams;
-  // only same-site paths, so the link cannot send people to another website
-  const safeNext = next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/language") ? next : "/";
-  const chosen = (await cookies()).get(LANG_COOKIE)?.value;
-  return <LanguageChoice next={safeNext} current={isLang(chosen) ? chosen : null} />;
+  redirect(next ? `/?next=${encodeURIComponent(next)}` : "/");
 }

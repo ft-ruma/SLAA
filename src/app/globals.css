@@ -10,6 +10,9 @@
   --font-sans: var(--font-geist), var(--font-sinhala), var(--font-tamil), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
+  --color-brand: var(--brand-blue);
+  --color-brand-deep: var(--brand-blue-deep);
+  --color-gold: var(--accent-gold);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -55,7 +58,7 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.43 0.15 262);
+  --primary: #0a0fe0;
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -66,7 +69,7 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.6 0.13 262);
+  --ring: #5b60ff;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -128,6 +131,26 @@
     @apply font-sans;
   }
 }
+/* SLAA brand, taken from the logo: royal blue and lion yellow.
+   --brand-blue matches the logo background exactly so the logo sits on it seamlessly;
+   --primary (above) is a touch deeper for buttons and links on white. */
+:root {
+  --brand-blue: #0607f8;
+  --brand-blue-deep: #0405b8;
+  --accent-gold: #f8e800;
+}
+
+/* Faint running-track lanes behind the brand-blue banners. */
+.track-lanes {
+  background-image:
+    radial-gradient(120% 90% at 100% 0%, oklch(1 0 0 / 0.16), transparent 60%),
+    radial-gradient(80% 70% at 0% 100%, oklch(0 0 0 / 0.18), transparent 60%),
+    repeating-linear-gradient(-12deg, transparent 0 46px, oklch(1 0 0 / 0.07) 46px 48px);
+}
+
+/* Section headings land below the sticky header and progress bar when jumped to. */
+.form-anchor { scroll-margin-top: 9rem; }
+
 @media print {
   .no-print { display: none !important; }
   body { background: white; }

@@ -6,6 +6,7 @@ import { cleanNic } from "@/lib/nic";
 import {
   ageOn,
   athleteRegisterSchema,
+  cleanPhone,
   cleanText,
   normalizeIdentity,
   normalizePhone,
@@ -59,7 +60,15 @@ export async function POST(req: Request) {
 
       await tx`
         INSERT INTO athlete (slaa_id, school_or_club, main_events)
-        VALUES (${athleteId}, ${cleanText(form.schoolOrClub)}, ${form.mainEvents})`;
+        VALUES (${athleteId}, ${cleanText(form.schoolOrClub)}, ${form.events.map((e) => e.code)})`;
+
+      // events in the order given: 1-3 are the main events
+      for (const [i, e] of form.events.entries()) {
+        await tx`
+          INSERT INTO athlete_event (athlete_id, event_code, rank, personal_best, pb_year, pb_competition)
+          VALUES (${athleteId}, ${e.code}, ${i + 1}, ${e.pb || null},
+                  ${e.pbYear === "" ? null : e.pbYear}, ${cleanText(e.pbCompetition) || null})`;
+      }
 
       if (isMinor && form.guardian) {
         const g = form.guardian;
@@ -79,6 +88,15 @@ export async function POST(req: Request) {
                   ${c.startYear === "" ? null : c.startYear}, ${c.endYear === "" ? null : c.endYear}, false)`;
       }
 
+      // coaches not in the list go to the admin follow-up queue
+      for (const c of form.unlistedCoaches) {
+        await tx`
+          INSERT INTO coach_request (requested_by, coach_name, coach_phone, coach_district,
+                                     relationship_type, start_year, end_year)
+          VALUES (${athleteId}, ${cleanText(c.name)}, ${cleanPhone(c.phone) ? normalizePhone(c.phone) : null},
+                  ${c.district || null}, ${c.relationship},
+                  ${c.startYear === "" ? null : c.startYear}, ${c.endYear === "" ? null : c.endYear})`;
+      }
 
       await tx`
         INSERT INTO audit_log (actor, action, slaa_id, details)
@@ -86,6 +104,8 @@ export async function POST(req: Request) {
           identity_type: identity.type,
           ip_hash: parsed.ipHash,
           coaches: form.coaches.length,
+          unlisted_coaches: form.unlistedCoaches.length,
+          events: form.events.length,
           guardian: isMinor,
         })})`;
       return athleteId;

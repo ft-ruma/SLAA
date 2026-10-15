@@ -1,5 +1,6 @@
 "use client";
 
+import { CircleCheck, IdCard, Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { parseNic } from "@/lib/nic";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,7 @@ export const emptyIdentity: IdentityValues = {
 };
 
 const TYPE_LABELS = { nic: "idNic", postal: "idPostal" } as const;
+const TYPE_ICONS = { nic: IdCard, postal: Mail } as const;
 
 export function IdentityFields({
   value,
@@ -49,11 +51,17 @@ export function IdentityFields({
               aria-checked={value.type === type}
               onClick={() => set({ type })}
               className={cn(
-                "min-h-11 rounded-lg border px-3 text-sm font-medium transition-colors",
-                value.type === type ? "border-primary bg-primary/10 text-primary" : "bg-background hover:bg-muted",
+                "flex min-h-14 items-center justify-center gap-2 rounded-xl border-2 px-3 py-2 text-sm font-medium transition-colors sm:text-base",
+                value.type === type
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border bg-background text-foreground hover:bg-muted",
               )}
             >
-              {t(TYPE_LABELS[type])}
+              {(() => {
+                const Icon = TYPE_ICONS[type];
+                return <Icon className="size-5 shrink-0" aria-hidden />;
+              })()}
+              <span className="text-balance">{t(TYPE_LABELS[type])}</span>
             </button>
           ))}
         </div>
@@ -63,7 +71,7 @@ export function IdentityFields({
         <Field label={t("nicNumber")} htmlFor="nic" error={errors.nic} hint={t("nicHint")}>
           <Input
             id="nic"
-            className={cn(inputClass, "font-mono uppercase tracking-wider")}
+            className={cn(inputClass, "h-14 font-mono text-lg uppercase tracking-widest")}
             inputMode="text"
             autoComplete="off"
             autoCapitalize="characters"
@@ -73,11 +81,14 @@ export function IdentityFields({
             aria-invalid={!!errors.nic || (nic !== null && !nic.ok && value.nic.replace(/\s/g, "").length >= 10)}
           />
           {nic?.ok && (
-            <div className="rounded-lg bg-muted px-3 py-2 text-sm" data-testid="nic-decoded">
+            <div className="flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-950" data-testid="nic-decoded">
+              <CircleCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" aria-hidden />
+              <span>
               {withBold(t("nicDecoded"), {
                 dob: formatDate(lang, nic.info.dateOfBirth),
                 gender: t(nic.info.gender === "F" ? "genderFemaleLower" : "genderMaleLower"),
               })}
+              </span>
             </div>
           )}
           {nic && !nic.ok && value.nic.replace(/\s/g, "").length >= 10 && !errors.nic && (
@@ -90,7 +101,7 @@ export function IdentityFields({
         <Field label={t("postalNumber")} htmlFor="postalId" error={errors.postalId}>
           <Input
             id="postalId"
-            className={cn(inputClass, "font-mono uppercase")}
+            className={cn(inputClass, "h-14 font-mono text-lg uppercase tracking-wider")}
             autoComplete="off"
             value={value.postalId}
             onChange={(e) => set({ postalId: e.target.value })}
